@@ -336,10 +336,11 @@
           const result = await response.json();
           console.log("AI result:", result);
 
-          if (!result || !result.data) throw new Error("No data from API");
+          if (!result || !result.data || !result.data[0]) {
+            throw new Error("No data from API");
+          }
 
-          // tu zmeníme
-          const suggestion = JSON.parse(result.data);
+          const suggestion = JSON.parse(result.data[0]);
           displayAiSuggestion(suggestion);
         } catch (error) {
           console.error("Error:", error);
