@@ -339,7 +339,7 @@
           const result = await response.json();
           console.log("Raw response:", result);
 
-          const suggestion = JSON.parse(result.data[0]);
+          console.log("Full result:", JSON.stringify(result, null, 2));
           displayAiSuggestion(suggestion);
         } catch (error) {
           console.error("Error:", error);
