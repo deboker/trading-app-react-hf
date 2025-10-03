@@ -336,15 +336,18 @@
           const result = await response.json();
           console.log("AI result:", result);
 
-          // !!! fix tu
-          if (!result || !result.data || !result.data[0]) {
+          if (!result || !result.data) {
             throw new Error("No data from API");
           }
 
-          // backend posiela string → treba parse
-          const suggestion = JSON.parse(result.data[0]);
-          console.log("Parsed suggestion:", suggestion);
+          // niekedy je .data string, niekedy pole → obsluhujeme obe
+          let raw = result.data;
+          if (Array.isArray(raw)) {
+            raw = raw[0];
+          }
 
+          const suggestion = JSON.parse(raw);
+          console.log("Parsed suggestion:", suggestion);
           displayAiSuggestion(suggestion);
         } catch (error) {
           console.error("Error:", error);
