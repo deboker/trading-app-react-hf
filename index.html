@@ -30,14 +30,27 @@
     <div class="max-w-7xl mx-auto p-6">
       <!-- Header -->
       <div class="mb-8">
-        <h1
-          class="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent"
-        >
-          AI Trading Assistant
-        </h1>
-        <p class="text-slate-400">
-          Powered by Binance API & Hugging Face AI Models
-        </p>
+        <div class="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h1
+              class="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent"
+            >
+              AI Trading Assistant
+            </h1>
+            <p class="text-slate-400">
+              Powered by Binance API & Hugging Face AI
+            </p>
+          </div>
+
+          <!-- API Status -->
+          <div
+            id="apiStatus"
+            class="flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-lg border border-slate-700"
+          >
+            <div class="w-3 h-3 rounded-full bg-yellow-400 animate-pulse"></div>
+            <span class="text-sm text-slate-300">Checking API...</span>
+          </div>
+        </div>
       </div>
 
       <!-- Controls -->
@@ -52,7 +65,7 @@
             value="100"
             min="10"
             max="10000"
-            class="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white"
+            class="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
           />
         </div>
 
@@ -63,7 +76,7 @@
           <button
             id="autoRefreshBtn"
             onclick="toggleAutoRefresh()"
-            class="px-4 py-2 rounded bg-slate-600"
+            class="px-4 py-2 rounded bg-slate-600 hover:bg-slate-500 transition-colors"
           >
             OFF
           </button>
@@ -71,7 +84,7 @@
 
         <button
           onclick="fetchMarketData()"
-          class="bg-blue-600 hover:bg-blue-700 rounded-lg p-4 flex items-center justify-center gap-2"
+          class="bg-blue-600 hover:bg-blue-700 rounded-lg p-4 flex items-center justify-center gap-2 transition-colors"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -109,7 +122,7 @@
             Small-Cap Assets
           </h2>
 
-          <div id="marketList" class="space-y-2 max-h-96 overflow-y-auto">
+          <div id="marketList" class="space-y-2 max-h-[600px] overflow-y-auto">
             <div class="text-center text-slate-500 py-8">
               Loading market data...
             </div>
@@ -153,7 +166,9 @@
                 <line x1="12" y1="8" x2="12" y2="12" />
                 <line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
-              <p>Select an asset to get AI trading suggestions</p>
+              <p class="text-center">
+                Select an asset to get AI trading suggestions
+              </p>
             </div>
           </div>
         </div>
@@ -162,16 +177,19 @@
       <!-- Footer -->
       <div class="mt-8 text-center text-sm text-slate-500">
         <p>
-          Real-time data from Binance API • AI analysis powered by Hugging Face
-          models
+          Real-time data from Binance API • AI powered by Hugging Face FinBERT
         </p>
         <p class="mt-1">For educational purposes only. Not financial advice.</p>
       </div>
     </div>
 
     <script>
-      const API_URL = "http://localhost:5000";
+      // ZMENIŤ NA TVOJU HUGGING FACE SPACE URL!
+      const API_URL = "https://deboker-trading-app.hf.space";
+
       let autoRefreshInterval = null;
+      let apiOnline = false;
+
       const smallCapAssets = [
         "KSMUSDT",
         "CHZUSDT",
@@ -184,6 +202,46 @@
         "ALGOUSDT",
         "VETUSDT",
       ];
+
+      // Check API health
+      async function checkApiHealth() {
+        try {
+          const response = await fetch(`${API_URL}/health`, {
+            method: "GET",
+            mode: "cors",
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            apiOnline = data.status === "online";
+            updateApiStatus(true, data);
+          } else {
+            apiOnline = false;
+            updateApiStatus(false);
+          }
+        } catch (error) {
+          console.error("API health check failed:", error);
+          apiOnline = false;
+          updateApiStatus(false);
+        }
+      }
+
+      // Update API status indicator
+      function updateApiStatus(online, data = null) {
+        const statusEl = document.getElementById("apiStatus");
+
+        if (online) {
+          statusEl.innerHTML = `
+                    <div class="w-3 h-3 rounded-full bg-green-400"></div>
+                    <span class="text-sm text-green-400">API Online</span>
+                `;
+        } else {
+          statusEl.innerHTML = `
+                    <div class="w-3 h-3 rounded-full bg-red-400"></div>
+                    <span class="text-sm text-red-400">API Offline</span>
+                `;
+        }
+      }
 
       // Fetch market data from Binance
       async function fetchMarketData() {
@@ -208,6 +266,11 @@
           displayMarketData(results);
         } catch (error) {
           console.error("Error fetching market data:", error);
+          document.getElementById("marketList").innerHTML = `
+                    <div class="text-center text-red-400 py-8">
+                        Error loading market data. Please try again.
+                    </div>
+                `;
         }
       }
 
@@ -217,20 +280,35 @@
         marketList.innerHTML = data
           .map(
             (asset) => `
-                <button onclick='analyzeAsset(${JSON.stringify(asset)})' 
-                    class="w-full bg-slate-700 hover:bg-slate-600 rounded-lg p-4 text-left transition-colors">
+                <button onclick='analyzeAsset(${JSON.stringify(asset).replace(
+                  /'/g,
+                  "&#39;"
+                )})' 
+                    class="w-full bg-slate-700 hover:bg-slate-600 rounded-lg p-4 text-left transition-colors ${
+                      !apiOnline ? "opacity-50 cursor-not-allowed" : ""
+                    }"
+                    ${!apiOnline ? "disabled" : ""}>
                     <div class="flex justify-between items-center mb-2">
-                        <span class="font-semibold">${asset.symbol.replace(
+                        <span class="font-semibold text-lg">${asset.symbol.replace(
                           "USDT",
                           ""
                         )}</span>
-                        <span class="text-sm font-medium ${
-                          asset.change >= 0 ? "text-green-400" : "text-red-400"
-                        }">
+                        <div class="flex items-center gap-2">
                             ${
-                              asset.change >= 0 ? "+" : ""
-                            }${asset.change.toFixed(2)}%
-                        </span>
+                              asset.change >= 0
+                                ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-400"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>'
+                                : '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-400" transform="rotate(180)"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>'
+                            }
+                            <span class="text-sm font-medium ${
+                              asset.change >= 0
+                                ? "text-green-400"
+                                : "text-red-400"
+                            }">
+                                ${
+                                  asset.change >= 0 ? "+" : ""
+                                }${asset.change.toFixed(2)}%
+                            </span>
+                        </div>
                     </div>
                     <div class="flex justify-between text-sm text-slate-400">
                         <span>$${asset.price.toFixed(4)}</span>
@@ -246,11 +324,17 @@
 
       // Analyze asset with AI
       async function analyzeAsset(asset) {
+        if (!apiOnline) {
+          alert("API is offline. Please wait for the server to start.");
+          return;
+        }
+
         const aiAnalysis = document.getElementById("aiAnalysis");
         aiAnalysis.innerHTML = `
                 <div class="flex flex-col items-center justify-center py-12">
                     <div class="spinner mb-4"></div>
                     <p class="text-slate-400">Analyzing with AI models...</p>
+                    <p class="text-sm text-slate-500 mt-2">This may take 10-30 seconds</p>
                 </div>
             `;
 
@@ -261,8 +345,13 @@
           const response = await fetch(`${API_URL}/analyze`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            mode: "cors",
             body: JSON.stringify({ asset, capital }),
           });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
 
           const result = await response.json();
           displayAiSuggestion(result);
@@ -270,7 +359,18 @@
           console.error("Error analyzing asset:", error);
           aiAnalysis.innerHTML = `
                     <div class="bg-red-900/20 border border-red-700 rounded-lg p-4">
-                        <p class="text-red-400">Error connecting to AI server. Make sure Flask app is running on port 5000.</p>
+                        <div class="flex items-start gap-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-400 mt-1 flex-shrink-0">
+                                <circle cx="12" cy="12" r="10"/>
+                                <line x1="15" y1="9" x2="9" y2="15"/>
+                                <line x1="9" y1="9" x2="15" y2="15"/>
+                            </svg>
+                            <div>
+                                <h3 class="font-semibold text-red-400 mb-2">Connection Error</h3>
+                                <p class="text-sm text-slate-300">Unable to connect to AI server. The Hugging Face Space may be starting up or sleeping.</p>
+                                <p class="text-sm text-slate-400 mt-2">Please wait a moment and try again.</p>
+                            </div>
+                        </div>
                     </div>
                 `;
         }
@@ -284,7 +384,7 @@
           aiAnalysis.innerHTML = `
                     <div class="bg-yellow-900/20 border border-yellow-700 rounded-lg p-4">
                         <div class="flex items-start gap-3">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-yellow-400 mt-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-yellow-400 mt-1 flex-shrink-0">
                                 <circle cx="12" cy="12" r="10"/>
                                 <line x1="12" y1="8" x2="12" y2="12"/>
                                 <line x1="12" y1="16" x2="12.01" y2="16"/>
@@ -346,8 +446,11 @@
                             </div>
                         </div>
 
-                        <div class="flex items-center gap-4 mb-3">
+                        <div class="flex items-center gap-4 mb-3 flex-wrap">
                             <div class="flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-blue-400">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                </svg>
                                 <span class="text-sm">
                                     Confidence: <span class="font-semibold text-blue-400">${
                                       suggestion.confidence
@@ -355,6 +458,10 @@
                                 </span>
                             </div>
                             <div class="flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-purple-400">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <path d="M12 6v6l4 2"/>
+                                </svg>
                                 <span class="text-sm">
                                     R:R <span class="font-semibold text-purple-400">${
                                       suggestion.risk_reward_ratio
@@ -367,14 +474,17 @@
                           suggestion.sentiment
                             ? `
                             <div class="bg-slate-700 rounded p-3 mb-3">
-                                <p class="text-xs text-slate-400 mb-1">Market Sentiment</p>
+                                <p class="text-xs text-slate-400 mb-1">AI Sentiment Analysis</p>
                                 <p class="text-sm text-slate-200">
                                     <span class="font-semibold ${
-                                      suggestion.sentiment.score > 0
+                                      suggestion.sentiment.label === "positive"
                                         ? "text-green-400"
-                                        : "text-red-400"
+                                        : suggestion.sentiment.label ===
+                                          "negative"
+                                        ? "text-red-400"
+                                        : "text-yellow-400"
                                     }">
-                                        ${suggestion.sentiment.label}
+                                        ${suggestion.sentiment.label.toUpperCase()}
                                     </span> (${(
                                       suggestion.sentiment.score * 100
                                     ).toFixed(1)}% confidence)
@@ -401,7 +511,7 @@
                             </svg>
                             Risk Warning
                         </p>
-                        <p>This is an AI suggestion based on technical analysis. Always do your own research and never invest more than you can afford to lose.</p>
+                        <p>This is an AI suggestion based on technical analysis and sentiment data. Always do your own research and never invest more than you can afford to lose.</p>
                     </div>
                 </div>
             `;
@@ -417,15 +527,24 @@
           btn.classList.remove("bg-green-600");
           btn.classList.add("bg-slate-600");
         } else {
-          autoRefreshInterval = setInterval(fetchMarketData, 30000);
+          autoRefreshInterval = setInterval(() => {
+            fetchMarketData();
+            checkApiHealth();
+          }, 30000);
           btn.textContent = "ON";
           btn.classList.remove("bg-slate-600");
           btn.classList.add("bg-green-600");
         }
       }
 
-      // Initialize
-      fetchMarketData();
+      // Initialize on page load
+      window.addEventListener("DOMContentLoaded", () => {
+        checkApiHealth();
+        fetchMarketData();
+
+        // Check API health every minute
+        setInterval(checkApiHealth, 60000);
+      });
     </script>
   </body>
 </html>
