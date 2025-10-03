@@ -338,7 +338,8 @@
 
           if (!result || !result.data) throw new Error("No data from API");
 
-          const suggestion = JSON.parse(result.data[0]);
+          // tu zmeníme
+          const suggestion = JSON.parse(result.data);
           displayAiSuggestion(suggestion);
         } catch (error) {
           console.error("Error:", error);
