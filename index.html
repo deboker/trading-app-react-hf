@@ -338,8 +338,17 @@
 
           const result = await response.json();
           console.log("Raw response:", result);
+          console.log("Result keys:", Object.keys(result));
+          console.log("Result.data:", result.data);
 
-          console.log("Full result:", JSON.stringify(result, null, 2));
+          // Potom skús nájsť kde je JSON
+          if (result.data && result.data[0]) {
+            const suggestion = JSON.parse(result.data[0]);
+          } else if (result.data) {
+            const suggestion = JSON.parse(result.data);
+          } else {
+            console.log("Unexpected format:", result);
+          }
           displayAiSuggestion(suggestion);
         } catch (error) {
           console.error("Error:", error);
