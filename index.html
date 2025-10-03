@@ -346,8 +346,8 @@
             raw = raw[0];
           }
 
-          const suggestion = JSON.parse(raw);
-          console.log("Parsed suggestion:", suggestion);
+          const suggestion = result.data[0]; // 👈 už je čistý objekt
+          console.log("AI suggestion:", suggestion);
           displayAiSuggestion(suggestion);
         } catch (error) {
           console.error("Error:", error);
