@@ -336,11 +336,15 @@
           const result = await response.json();
           console.log("AI result:", result);
 
+          // !!! fix tu
           if (!result || !result.data || !result.data[0]) {
             throw new Error("No data from API");
           }
 
+          // backend posiela string → treba parse
           const suggestion = JSON.parse(result.data[0]);
+          console.log("Parsed suggestion:", suggestion);
+
           displayAiSuggestion(suggestion);
         } catch (error) {
           console.error("Error:", error);
