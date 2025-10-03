@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Trading Assistant</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import { Client } from "https://cdn.jsdelivr.net/npm/@gradio/client@1.3.0/dist/index.min.js";
+      window.GradioClient = Client;
+    </script>
     <style>
       .spinner {
         border: 3px solid #f3f3f3;
@@ -183,10 +187,11 @@
       </div>
     </div>
 
-    <script>
-      // ZMENIŤ NA TVOJU HUGGING FACE SPACE URL!
-      const API_URL = "https://deboker-trading-app.hf.space";
+    <script type="module">
+      // HF Space name
+      const HF_SPACE = "deboker/trading-app";
 
+      let gradioClient = null;
       let autoRefreshInterval = null;
       let apiOnline = false;
 
@@ -203,22 +208,36 @@
         "VETUSDT",
       ];
 
+      // Initialize Gradio Client
+      async function initGradioClient() {
+        try {
+          console.log("Connecting to Gradio Space...");
+          gradioClient = await window.GradioClient(HF_SPACE);
+          console.log("✅ Connected to Gradio Space");
+          return true;
+        } catch (error) {
+          console.error("❌ Failed to connect to Gradio Space:", error);
+          return false;
+        }
+      }
+
       // Check API health
       async function checkApiHealth() {
         try {
-          const response = await fetch(`${API_URL}/health`, {
-            method: "GET",
-            mode: "cors",
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            apiOnline = data.status === "online";
-            updateApiStatus(true, data);
-          } else {
-            apiOnline = false;
-            updateApiStatus(false);
+          if (!gradioClient) {
+            const connected = await initGradioClient();
+            if (!connected) {
+              apiOnline = false;
+              updateApiStatus(false);
+              return;
+            }
           }
+
+          const result = await gradioClient.predict("/health_check", []);
+          const data = JSON.parse(result.data[0]);
+
+          apiOnline = data.status === "online";
+          updateApiStatus(true, data);
         } catch (error) {
           console.error("API health check failed:", error);
           apiOnline = false;
@@ -280,10 +299,9 @@
         marketList.innerHTML = data
           .map(
             (asset) => `
-                <button onclick='analyzeAsset(${JSON.stringify(asset).replace(
-                  /'/g,
-                  "&#39;"
-                )})' 
+                <button onclick="window.analyzeAssetGlobal(${JSON.stringify(
+                  asset
+                ).replace(/"/g, "&quot;")})" 
                     class="w-full bg-slate-700 hover:bg-slate-600 rounded-lg p-4 text-left transition-colors ${
                       !apiOnline ? "opacity-50 cursor-not-allowed" : ""
                     }"
@@ -342,19 +360,16 @@
           const capital = parseFloat(
             document.getElementById("userCapital").value
           );
-          const response = await fetch(`${API_URL}/analyze`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            mode: "cors",
-            body: JSON.stringify({ asset, capital }),
-          });
 
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-          }
+          // Call Gradio API
+          const assetJson = JSON.stringify(asset);
+          const result = await gradioClient.predict("/analyze_api", [
+            assetJson,
+            capital,
+          ]);
 
-          const result = await response.json();
-          displayAiSuggestion(result);
+          const suggestion = JSON.parse(result.data[0]);
+          displayAiSuggestion(suggestion);
         } catch (error) {
           console.error("Error analyzing asset:", error);
           aiAnalysis.innerHTML = `
@@ -367,7 +382,7 @@
                             </svg>
                             <div>
                                 <h3 class="font-semibold text-red-400 mb-2">Connection Error</h3>
-                                <p class="text-sm text-slate-300">Unable to connect to AI server. The Hugging Face Space may be starting up or sleeping.</p>
+                                <p class="text-sm text-slate-300">Unable to connect to AI server. The Hugging Face Space may be starting up.</p>
                                 <p class="text-sm text-slate-400 mt-2">Please wait a moment and try again.</p>
                             </div>
                         </div>
@@ -375,6 +390,9 @@
                 `;
         }
       }
+
+      // Make analyzeAsset available globally
+      window.analyzeAssetGlobal = analyzeAsset;
 
       // Display AI suggestion
       function displayAiSuggestion(suggestion) {
@@ -448,9 +466,6 @@
 
                         <div class="flex items-center gap-4 mb-3 flex-wrap">
                             <div class="flex items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-blue-400">
-                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                                </svg>
                                 <span class="text-sm">
                                     Confidence: <span class="font-semibold text-blue-400">${
                                       suggestion.confidence
@@ -458,10 +473,6 @@
                                 </span>
                             </div>
                             <div class="flex items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-purple-400">
-                                    <circle cx="12" cy="12" r="10"/>
-                                    <path d="M12 6v6l4 2"/>
-                                </svg>
                                 <span class="text-sm">
                                     R:R <span class="font-semibold text-purple-400">${
                                       suggestion.risk_reward_ratio
@@ -518,7 +529,7 @@
       }
 
       // Toggle auto-refresh
-      function toggleAutoRefresh() {
+      window.toggleAutoRefresh = function () {
         const btn = document.getElementById("autoRefreshBtn");
         if (autoRefreshInterval) {
           clearInterval(autoRefreshInterval);
@@ -535,16 +546,19 @@
           btn.classList.remove("bg-slate-600");
           btn.classList.add("bg-green-600");
         }
-      }
+      };
 
       // Initialize on page load
-      window.addEventListener("DOMContentLoaded", () => {
-        checkApiHealth();
+      window.addEventListener("DOMContentLoaded", async () => {
+        await checkApiHealth();
         fetchMarketData();
 
         // Check API health every minute
         setInterval(checkApiHealth, 60000);
       });
+
+      // Make fetchMarketData available globally
+      window.fetchMarketData = fetchMarketData;
     </script>
   </body>
 </html>
